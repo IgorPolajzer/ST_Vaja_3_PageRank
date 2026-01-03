@@ -1,0 +1,5 @@
+// crawler_graph
+digraph {
+	"https//google.com" [fillcolor=green style=filled]
+	rankdir=LR
+}
