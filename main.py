@@ -45,26 +45,21 @@ def init_matrices(graph: defaultdict[str, set[str]]) -> np.array:
     return M, N, r
 
 
-def init_N(graph: defaultdict[str, set[str]]) -> np.array:
-    n = len(graph)
-    r = 1 / n
-    N = np.full((n, n), r)
-
-
-
 if __name__ == '__main__':
-    # depth = input("Configure the maximum allowed crawler depth: ")
-    # depth = 0
-    #
-    # start = time.time()
-    # url = "https://www.google.com"
-    # graph = search_page(url, depth, defaultdict(set))
-    # print(f"Exec time: {time.time() - start}")
+    depth = int(input("Configure the maximum allowed crawler depth: "))
+    # depth = 1
+
+    start = time.time()
+    url = "https://www.google.com/"
+    graph = search_page(url, depth, defaultdict(set), defaultdict(bool))
+    print(f"Exec time: {time.time() - start}")
+
+    # draw_graph(graph, url, "crawler_graph_v2")
 
     B = 0.8
     epsilon = 1e-4 # 1 * 10 ^ -4
 
-    graph = init_test_graph()
+    # graph = init_test_graph()
     M, N, r_new = init_matrices(graph)
     A = (B * M) + ((1 - B) * N)
 
@@ -77,10 +72,17 @@ if __name__ == '__main__':
 
         print(f"Rank: {r_new}")
 
-    indices = np.argsort(-r_new)
-    sorted_ranks = r_new[indices]
+    named_ranks = []
+    for idx, page in enumerate(graph.keys()):
+        named_ranks.append((r_new[idx], page))
 
-    top_number = 5 if len(graph) >= 5 else 1
-    top_five = sorted_ranks[:top_number]
+    # Sort by rank descending
+    named_ranks.sort(reverse=True)
 
-    print(f"First {top_number} web pages according to PageRank: {top_five}")
+    top_number = min(5, len(named_ranks))
+    top = named_ranks[:top_number]
+
+    print(40*"=")
+    print(f"Top {top_number} web pages according to PageRank:")
+    for idx, (rank, page) in enumerate(top):
+        print(f"Place: {idx}; Page name: {page}, Rank value: {rank}")

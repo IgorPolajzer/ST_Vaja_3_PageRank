@@ -21,13 +21,26 @@ def get_root(url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def is_site_allowed(url: str) -> bool:
-    url = get_root(url)
-    robots = requests.get(url + "/robots.txt").text
-    disallowed = re.match(r"^Disallow:\\s*/$", robots)
-    allowed = re.match("^Allow:\\s*/$", robots)
+def is_site_allowed(url: str, permissions: defaultdict[str, bool]) -> bool:
+    root_url = get_root(url)
 
-    return (allowed and not disallowed) or (not allowed and not disallowed)
+    # Check if this file was already looked at.
+    if root_url in permissions:
+        return permissions[root_url]
+
+    # Handle the file.
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        robots = requests.get(root_url + "/robots.txt", headers=headers, timeout=5).text
+        disallowed = re.search(r"Disallow:\\s*/", robots)
+        allowed = re.match("Allow:\\s*/$", robots)
+
+        is_allowed = (allowed and not disallowed) or (not allowed and not disallowed)
+        permissions[root_url] = is_allowed
+
+        return is_allowed
+    except requests.RequestException:
+        return False
 
 
 def draw_graph(graph, s, graph_name):
@@ -42,22 +55,31 @@ def draw_graph(graph, s, graph_name):
     dot.render(f'graphs/{graph_name}.gv')
 
 
-def search_page(url: str, max_depth: int, sites: defaultdict[str, set[str]]) -> defaultdict[str, set[str]]:
-    if sites is None:
-        sites = defaultdict(set)
+def search_page(url: str, max_depth: int, sites: defaultdict[str, set[str]], permissions: defaultdict[str, bool]) -> defaultdict[str, set[str]]:
+    if url in sites:
+        return sites
 
-    if not is_site_allowed(url):
+    if not is_site_allowed(url, permissions):
         print(f"Site {url} doesnt allow crawlers.")
         return sites
 
-    html = requests.get(url).text
-    soup = BeautifulSoup(html, 'html.parser')
-    hyperlinks = set([link.get('href') for link in soup.find_all('a', attrs={'href': re.compile("^https://")})])
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        html = requests.get(url, headers=headers, timeout=5).text
+        soup = BeautifulSoup(html, 'html.parser')
+        hyperlinks = set([link.get('href') for link in soup.find_all('a', attrs={'href': re.compile("^https://")})])
+    except requests.RequestException:
+        return sites
+
+    for link in hyperlinks:
+        if link not in sites:
+            sites[link] = set()
+
     sites[url] = hyperlinks
 
     if max_depth > 0:
         for link in hyperlinks:
-            if link not in sites:
-                concat_defaultdicts(sites, search_page(link, max_depth - 1, sites))
+            if link not in sites or len(sites[link]) == 0:
+                search_page(link, max_depth - 1, sites, permissions)
 
     return sites
