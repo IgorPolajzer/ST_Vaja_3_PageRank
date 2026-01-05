@@ -2,7 +2,7 @@ import time
 from collections import defaultdict
 import numpy as np
 
-from utils import search_page, draw_graph
+from utils import search_site, draw_graph
 
 
 def init_test_graph() -> defaultdict[str, set[str]]:
@@ -47,14 +47,13 @@ def init_matrices(graph: defaultdict[str, set[str]]) -> np.array:
 
 if __name__ == '__main__':
     depth = int(input("Configure the maximum allowed crawler depth: "))
-    # depth = 1
 
     start = time.time()
-    url = "https://www.google.com/"
-    graph = search_page(url, depth, defaultdict(set), defaultdict(bool))
+    url = "https://feri.um.si"
+    graph = search_site(url, depth, defaultdict(set), defaultdict(bool))
     print(f"Exec time: {time.time() - start}")
 
-    # draw_graph(graph, url, "crawler_graph_v2")
+    draw_graph(graph, url, "feri_crawler_graph")
 
     B = 0.8
     epsilon = 1e-4 # 1 * 10 ^ -4

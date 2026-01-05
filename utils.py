@@ -21,9 +21,7 @@ def get_root(url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def is_site_allowed(url: str, permissions: defaultdict[str, bool]) -> bool:
-    root_url = get_root(url)
-
+def is_site_search_allowed(root_url: str, permissions: defaultdict[str, bool]) -> bool:
     # Check if this file was already looked at.
     if root_url in permissions:
         return permissions[root_url]
@@ -52,34 +50,38 @@ def draw_graph(graph, s, graph_name):
         for v in graph[u]:
             dot.edge(u.replace(":", ""), v.replace(":", ""))
 
-    dot.render(f'graphs/{graph_name}.gv')
+    dot.render(f'graphs/{graph_name}.gv', cleanup=True)
 
 
-def search_page(url: str, max_depth: int, sites: defaultdict[str, set[str]], permissions: defaultdict[str, bool]) -> defaultdict[str, set[str]]:
-    if url in sites:
+def search_site(url: str, max_depth: int, sites: defaultdict[str, set[str]], permissions: defaultdict[str, bool]) -> defaultdict[str, set[str]]:
+    # Site already visited.
+    root_url = get_root(url)
+
+    if root_url in sites and len(sites.get(root_url)) > 0:
         return sites
 
-    if not is_site_allowed(url, permissions):
-        print(f"Site {url} doesnt allow crawlers.")
+    if not is_site_search_allowed(root_url, permissions):
+        print(f"Site {root_url} doesnt allow crawlers.")
         return sites
 
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        html = requests.get(url, headers=headers, timeout=5).text
+        html = requests.get(root_url, headers=headers, timeout=5).text
         soup = BeautifulSoup(html, 'html.parser')
-        hyperlinks = set([link.get('href') for link in soup.find_all('a', attrs={'href': re.compile("^https://")})])
+        hyperlinks = set([get_root(link.get('href')) for link in soup.find_all('a', attrs={'href': re.compile("^https://")})])
     except requests.RequestException:
         return sites
 
+    # Add nodes (hyperink roots) to graph.
     for link in hyperlinks:
         if link not in sites:
             sites[link] = set()
 
-    sites[url] = hyperlinks
+    sites[root_url] = set(filter(lambda link: link != root_url, hyperlinks))
 
     if max_depth > 0:
         for link in hyperlinks:
             if link not in sites or len(sites[link]) == 0:
-                search_page(link, max_depth - 1, sites, permissions)
+                search_site(link, max_depth - 1, sites, permissions)
 
     return sites
