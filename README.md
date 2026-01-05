@@ -1,6 +1,6 @@
 ---
 title: "Spletne tehnologije – Vaja 3: PageRank"
-author: "Ime Priimek"
+author: "Igor Polajžer"
 date: "5. januar 2026"
 ---
 
