@@ -7,6 +7,10 @@ import re
 import requests
 
 
+def normalize(x, xmin, xmax):
+    return 1 + (x - xmin) * 2 / (xmax - xmin)
+
+
 def concat_defaultdicts(dict_one: defaultdict, dict_two: defaultdict):
     for k, v in dict_two.items():
         if k in dict_one:
@@ -41,10 +45,50 @@ def is_site_search_allowed(root_url: str, permissions: defaultdict[str, bool]) -
         return False
 
 
-def draw_graph(graph, s, graph_name):
+def draw_graph(graph: defaultdict[str, set[str]], named_ranks: list, url: str):
+    root_url = get_root(url)
+    root_wo_column = root_url.replace(":", "")
+    graph_name = f"{root_wo_column}_crawler_graph"
     dot = graphviz.Digraph(comment=graph_name)
-    dot.node(s.replace(":", ""), style="filled", fillcolor="green")
+    dot.node(root_wo_column, style="filled", fillcolor="green")
     dot.attr(rankdir='LR')
+
+    # Create a dictionary for easy lookup of ranks
+    rank_dict = {name: float(rank) for rank, name in named_ranks}
+
+    # Find min and max ranks for scaling
+    min_rank = None
+    max_rank = None
+    if rank_dict:
+        min_rank = min(rank_dict.values())
+        max_rank = max(rank_dict.values())
+
+    for node in graph:
+        root_node = True if node == root_url else False
+
+        if node in rank_dict and min_rank is not None and max_rank is not None:
+            size = normalize(rank_dict[node], min_rank, max_rank)
+
+            normalized_rank = (rank_dict[node] - min_rank) / (max_rank - min_rank) if max_rank != min_rank else 1
+
+            gray_value = int(235 - (normalized_rank * 135))  # From #EBEBEB (light) to #646464 (dark)
+            color = f"#{gray_value:02x}{gray_value:02x}{gray_value:02x}"
+
+            dot.node(
+                name=node.replace(":", ""),
+                label=f"{url}\\nRank: {float(rank_dict[node]):.10f}",
+                style="filled",
+                fillcolor="green" if root_node else color,
+                height=str(size),
+                width=str(size) if size >= 2 else "2",
+                fixedsize="true"
+            )
+        else:
+            dot.node(
+                node.replace(":", ""),
+                style="filled",
+                fillcolor="green" if root_node else "white"
+            )
 
     for u in graph:
         for v in graph[u]:
@@ -53,7 +97,8 @@ def draw_graph(graph, s, graph_name):
     dot.render(f'graphs/{graph_name}.gv', cleanup=True)
 
 
-def search_site(url: str, max_depth: int, sites: defaultdict[str, set[str]], permissions: defaultdict[str, bool]) -> defaultdict[str, set[str]]:
+def search_site(url: str, max_depth: int, sites: defaultdict[str, set[str]],
+                permissions: defaultdict[str, bool]) -> defaultdict[str, set[str]]:
     # Site already visited.
     root_url = get_root(url)
 
@@ -79,7 +124,7 @@ def search_site(url: str, max_depth: int, sites: defaultdict[str, set[str]], per
 
     sites[root_url] = set(filter(lambda link: link != root_url, hyperlinks))
 
-    if max_depth > 0:
+    if max_depth > 1:
         for link in hyperlinks:
             if link not in sites or len(sites[link]) == 0:
                 search_site(link, max_depth - 1, sites, permissions)

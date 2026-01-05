@@ -2,7 +2,7 @@ import time
 from collections import defaultdict
 import numpy as np
 
-from utils import search_site, draw_graph
+from utils import search_site, draw_graph, get_root
 
 
 def init_test_graph() -> defaultdict[str, set[str]]:
@@ -36,11 +36,11 @@ def init_matrices(graph: defaultdict[str, set[str]]) -> np.array:
         col_view = M[:, idx]
         for connection in graph[page]:
             connection_idx = graph_positions[connection]
-            non_zero_count = np.count_nonzero(col_view)
             col_view[connection_idx] = 1
+            non_zero_count = np.count_nonzero(col_view)
 
             if non_zero_count > 0:
-                col_view[col_view != 0] = 1 / (non_zero_count + 1)
+                col_view[col_view != 0] = 1 / non_zero_count
 
     return M, N, r
 
@@ -51,14 +51,12 @@ if __name__ == '__main__':
     start = time.time()
     url = "https://feri.um.si"
     graph = search_site(url, depth, defaultdict(set), defaultdict(bool))
+    # graph = init_test_graph()
     print(f"Exec time: {time.time() - start}")
 
-    draw_graph(graph, url, "feri_crawler_graph")
-
     B = 0.8
-    epsilon = 1e-4 # 1 * 10 ^ -4
+    epsilon = 1e-4  # 1 * 10 ^ -4
 
-    # graph = init_test_graph()
     M, N, r_new = init_matrices(graph)
     A = (B * M) + ((1 - B) * N)
 
@@ -76,12 +74,14 @@ if __name__ == '__main__':
         named_ranks.append((r_new[idx], page))
 
     # Sort by rank descending
-    named_ranks.sort(reverse=True)
+    named_ranks.sort(key=lambda x: x[0], reverse=True)
+
+    draw_graph(graph, named_ranks, url)
 
     top_number = min(5, len(named_ranks))
-    top = named_ranks[:top_number]
+    top_pages = named_ranks[:top_number]
 
-    print(40*"=")
+    print(40 * "=")
     print(f"Top {top_number} web pages according to PageRank:")
-    for idx, (rank, page) in enumerate(top):
+    for idx, (rank, page) in enumerate(top_pages):
         print(f"Place: {idx}; Page name: {page}, Rank value: {rank}")
